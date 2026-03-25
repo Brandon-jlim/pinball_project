@@ -48,8 +48,46 @@
   gtag('js', new Date());
   gtag('config', 'G-5899C1DJM0');
 
+  function extractYoutubeHandles(rawText) {
+    const seen = new Set();
+    const handles = [];
+
+    rawText
+      .replace(/\u200B|\u200C|\u200D|\uFEFF/g, '')
+      .split(/\r?\n/)
+      .map(v => v.trim())
+      .forEach(line => {
+        const match = line.match(/^@([^\s]+)$/);
+        if (!match) return;
+
+        const handle = `@${match[1]}`;
+        if (seen.has(handle)) return;
+
+        seen.add(handle);
+        handles.push(handle);
+      });
+
+    return handles;
+  }
+
+  function looksLikeYoutubeCommentDump(rawText) {
+    const cleaned = rawText.replace(/\u200B|\u200C|\u200D|\uFEFF/g, '');
+    const lines = cleaned.split(/\r?\n/).map(v => v.trim()).filter(Boolean);
+
+    if (lines.length < 2) return false;
+
+    const handleLines = lines.filter(line => /^@[^\s]+$/.test(line));
+    return handleLines.length >= 2;
+  }
+
   function getNames() {
     const value = document.querySelector('#in_names').value.trim();
+    if (!value) return [];
+
+    if (looksLikeYoutubeCommentDump(value)) {
+      return extractYoutubeHandles(value);
+    }
+
     return value.split(/[,\r\n]/g).map(v => v.trim()).filter(v => !!v);
   }
 
@@ -315,13 +353,19 @@
       getReady();
     });
 
+    document.querySelector('#in_names').addEventListener('paste', () => {
+      requestAnimationFrame(() => {
+        normalizeNameInput();
+        renderWeightEditor();
+        getReady();
+      });
+    });
+
     document.querySelector('#in_names').addEventListener('blur', () => {
-      importInlineWeightsToStorage();
       normalizeNameInput();
       renderWeightEditor();
       getReady();
     });
-
     const weightRows = document.querySelector('#weightRows');
     if (weightRows) {
       weightRows.addEventListener('input', (e) => {
