@@ -1,0 +1,69 @@
+name: Build and Deploy
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      PUBLIC_URL_OVERRIDE: ${{ vars.PUBLIC_URL }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: yarn
+
+      - name: Install dependencies
+        run: yarn --frozen-lockfile
+
+      - name: Decide PUBLIC_URL
+        run: |
+          OWNER="${GITHUB_REPOSITORY%%/*}"
+          REPO="${GITHUB_REPOSITORY#*/}"
+          if [ -n "$PUBLIC_URL_OVERRIDE" ]; then
+            PUBLIC_URL="$PUBLIC_URL_OVERRIDE"
+          elif [ "$REPO" = "${OWNER}.github.io" ]; then
+            PUBLIC_URL="/"
+          else
+            PUBLIC_URL="/${REPO}/"
+          fi
+          echo "PUBLIC_URL=${PUBLIC_URL}" >> "$GITHUB_ENV"
+          echo "Using PUBLIC_URL=${PUBLIC_URL}"
+
+      - name: Build site
+        run: yarn build
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: dist
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

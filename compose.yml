@@ -1,0 +1,8 @@
+services:
+  roulette:
+    build:
+      context: .
+      args:
+        PUBLIC_URL: /
+    ports:
+      - "8080:80"

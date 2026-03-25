@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Weight Control</title>
+  <link rel='stylesheet' href='assets/weights.scss' />
+</head>
+<body>
+  <script type="module" src="./src/weights.ts"></script>
+  <main class="weight-popup-shell">
+    <section class="weight-popup-card weight-popup-header">
+      <div>
+        <h1 data-trans>Weight control window</h1>
+        <p data-trans>Adjust participant weights in this separate window. Changes are applied to the main pinball screen automatically.</p>
+      </div>
+      <div class="weight-popup-actions">
+        <button id="btnRefreshWeights" data-trans>Refresh list</button>
+        <button id="btnResetWeights" data-trans>Reset all weights</button>
+        <button id="btnCloseWeights" data-trans>Close window</button>
+      </div>
+    </section>
+
+    <section class="weight-popup-card weight-popup-status">
+      <div class="weight-status-item">
+        <span class="weight-status-label" data-trans>Current participants</span>
+        <strong id="participantCount">0</strong>
+      </div>
+      <div class="weight-status-item">
+        <span class="weight-status-label" data-trans>Adjusted weights</span>
+        <strong id="customWeightCount">0</strong>
+      </div>
+    </section>
+
+    <section class="weight-popup-card">
+      <div id="weightPopupEmpty" class="weight-popup-empty" hidden data-trans>Enter participant names in the main pinball window to edit weights here.</div>
+      <div id="weightPopupRows" class="weight-popup-rows"></div>
+    </section>
+  </main>
+</body>
+</html>

@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-5899C1DJM0"></script>
+  <script defer src="https://umami.lazygyu.net/script.js" data-website-id="205aee0d-30b6-4c69-a053-0c72c8377be0"></script>
+
+  <title>Marble Roulette</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="apple-touch-icon" sizes="57x57" href="assets/apple-icon-57x57.png">
+  <link rel="apple-touch-icon" sizes="60x60" href="assets/apple-icon-60x60.png">
+  <link rel="apple-touch-icon" sizes="72x72" href="assets/apple-icon-72x72.png">
+  <link rel="apple-touch-icon" sizes="76x76" href="assets/apple-icon-76x76.png">
+  <link rel="apple-touch-icon" sizes="114x114" href="assets/apple-icon-114x114.png">
+  <link rel="apple-touch-icon" sizes="120x120" href="assets/apple-icon-120x120.png">
+  <link rel="apple-touch-icon" sizes="144x144" href="assets/apple-icon-144x144.png">
+  <link rel="apple-touch-icon" sizes="152x152" href="assets/apple-icon-152x152.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-icon-180x180.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="assets/android-icon-192x192.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="96x96" href="assets/favicon-96x96.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16x16.png">
+  <link rel="manifest" href="assets/manifest.json">
+
+  <meta name="msapplication-TileColor" content="#ffffff">
+  <meta name="msapplication-TileImage" content="assets/ms-icon-144x144.png">
+  <meta name="theme-color" content="#ffffff">
+
+  <meta name="description" content="A lucky draw by dropping marbles, made by lazygyu">
+  <meta property="og:url" content="https://lazygyu.github.io/roulette/">
+  <meta property="og:title" content="Marble Roulette">
+  <meta property="og:description" content="A lucky draw by dropping marbles, made by lazygyu">
+  <meta property="og:site_name" content="lazygyu.github.io">
+  <meta property="og:type" content="website">
+
+  <link rel='stylesheet' href='assets/style.scss' />
+</head>
+<body>
+<script type="module" src="./src/index.ts"></script>
+<script type="text/javascript">
+  window.dataLayer = window.dataLayer || [];
+
+  function gtag() {
+    dataLayer.push(arguments);
+  }
+
+  gtag('js', new Date());
+  gtag('config', 'G-5899C1DJM0');
+
+  function getNames() {
+    const value = document.querySelector('#in_names').value.trim();
+    return value.split(/[,\r\n]/g).map(v => v.trim()).filter(v => !!v);
+  }
+
+  function parseName(nameStr) {
+    const weightRegex = /\/(\d+(?:\.\d+)?)/;
+    const countRegex = /\*(\d+)/;
+    const name = /^\s*([^\/*]+)?/.exec(nameStr)?.[1]?.trim();
+    const weightMatch = weightRegex.exec(nameStr);
+    const countMatch = countRegex.exec(nameStr);
+
+    if (!name) {
+      return null;
+    }
+
+    return {
+      name,
+      weight: weightMatch ? parseFloat(weightMatch[1]) : 1,
+      count: countMatch ? parseInt(countMatch[1], 10) : 1,
+    };
+  }
+
+  function escapeHtml(str) {
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
+  function formatWeight(value) {
+    return Number(value.toFixed(2)).toString();
+  }
+
+  function getStoredWeights() {
+    try {
+      return JSON.parse(localStorage.getItem('mbr_weights') || '{}');
+    } catch (e) {
+      return {};
+    }
+  }
+
+  function saveStoredWeights(weightMap) {
+    localStorage.setItem('mbr_weights', JSON.stringify(weightMap));
+  }
+
+  function isKoreanLocale() {
+    const locale = (document.documentElement.lang || navigator.language || 'en').toLowerCase();
+    return locale.startsWith('ko');
+  }
+
+  function getWeightSummaryMessage(participants) {
+    const customizedCount = participants.filter((participant) => Math.abs(participant.weight - 1) > 0.001).length;
+
+    if (!participants.length) {
+      return isKoreanLocale()
+        ? '가중치를 조절할 참가자를 먼저 입력하세요.'
+        : 'Enter participants first, then adjust weights in the separate window.';
+    }
+
+    if (!customizedCount) {
+      return isKoreanLocale()
+        ? `총 ${participants.length}명 모두 기본 가중치(1배)`
+        : `All ${participants.length} participants are using the default weight (1x).`;
+    }
+
+    return isKoreanLocale()
+      ? `총 ${participants.length}명 중 ${customizedCount}명의 가중치가 조절됨`
+      : `${customizedCount} of ${participants.length} participants have custom weights.`;
+  }
+
+  function importInlineWeightsToStorage() {
+    const storedWeights = getStoredWeights();
+    let changed = false;
+
+    getParticipantsFromTextarea().forEach((participant) => {
+      if (participant.inlineWeight !== 1 && !(typeof storedWeights[participant.name] === 'number' && storedWeights[participant.name] > 0)) {
+        storedWeights[participant.name] = participant.inlineWeight;
+        changed = true;
+      }
+    });
+
+    if (changed) {
+      saveStoredWeights(storedWeights);
+    }
+  }
+
+  function renderWeightSummary() {
+    const summary = document.querySelector('#weightSummary');
+    if (!summary) return;
+
+    const participants = getParticipantsForWeightEditor();
+    summary.textContent = getWeightSummaryMessage(participants);
+  }
+
+  function openWeightControlPopup() {
+    importInlineWeightsToStorage();
+    localStorage.setItem('mbr_names', document.querySelector('#in_names').value);
+
+    const popup = window.open(
+      'weights.html',
+      'marbleRouletteWeightControl',
+      'popup=yes,width=560,height=780,resizable=yes,scrollbars=yes'
+    );
+
+    if (!popup) {
+      simpleToast(isKoreanLocale()
+        ? '팝업이 차단되었습니다. 브라우저에서 팝업을 허용한 뒤 다시 열어주세요.'
+        : 'The popup was blocked. Please allow popups for this site and try again.');
+      return;
+    }
+
+    popup.focus();
+  }
+
+  function getParticipantsFromTextarea() {
+    const map = new Map();
+
+    getNames().forEach((raw) => {
+      const parsed = parseName(raw);
+      if (!parsed) return;
+
+      const existing = map.get(parsed.name) || {
+        name: parsed.name,
+        count: 0,
+        inlineWeight: 1,
+      };
+
+      existing.count += parsed.count || 1;
+      if (parsed.weight !== 1) {
+        existing.inlineWeight = parsed.weight;
+      }
+
+      map.set(parsed.name, existing);
+    });
+
+    return Array.from(map.values());
+  }
+
+  function getParticipantsForWeightEditor() {
+    const storedWeights = getStoredWeights();
+
+    return getParticipantsFromTextarea().map((participant) => {
+      const storedWeight = storedWeights[participant.name];
+      return {
+        name: participant.name,
+        count: participant.count,
+        weight: typeof storedWeight === 'number' && storedWeight > 0 ? storedWeight : (participant.inlineWeight || 1),
+      };
+    });
+  }
+
+  function buildWeightedNames() {
+    return getParticipantsForWeightEditor().map((participant) => {
+      let value = participant.name;
+
+      if (participant.weight !== 1) {
+        value += `/${formatWeight(participant.weight)}`;
+      }
+
+      if (participant.count > 1) {
+        value += `*${participant.count}`;
+      }
+
+      return value;
+    });
+  }
+
+  function renderWeightEditor() {
+    renderWeightSummary();
+  }
+
+  function normalizeNameInput() {
+    const participants = getParticipantsFromTextarea();
+    const normalized = participants.map((participant) => {
+      return participant.count > 1 ? `${participant.name}*${participant.count}` : participant.name;
+    });
+
+    const textarea = document.querySelector('#in_names');
+    const newValue = normalized.join('\n');
+    if (textarea.value !== newValue) {
+      textarea.value = newValue;
+    }
+  }
+
+  function syncWeightsFromEditor() {
+    const weightMap = {};
+    document.querySelectorAll('.weight-input').forEach((input) => {
+      const name = input.dataset.name;
+      const value = parseFloat(input.value);
+      if (!name) return;
+      weightMap[name] = !isNaN(value) && value > 0 ? value : 1;
+    });
+    saveStoredWeights(weightMap);
+    renderWeightSummary();
+  }
+
+  function getReady() {
+    const weightedNames = buildWeightedNames();
+    window.roulette.setMarbles(weightedNames);
+    ready = weightedNames.length > 0;
+    localStorage.setItem('mbr_names', document.querySelector('#in_names').value);
+    switch (winnerType) {
+      case 'first':
+        setWinnerRank(1);
+        break;
+      case 'last':
+        const total = window.roulette.getCount();
+        setWinnerRank(total);
+        break;
+    }
+  }
+
+  function setWinnerRank(rank) {
+    document.querySelector('#in_winningRank').value = rank;
+    window.options.winningRank = rank - 1;
+    window.roulette.setWinningRank(window.options.winningRank);
+
+    if (winnerType === 'first') {
+      document.querySelector('.btn-first-winner').classList.toggle('active', true);
+      document.querySelector('.btn-last-winner').classList.toggle('active', false);
+      document.querySelector('#in_winningRank').classList.toggle('active', false);
+    } else if (winnerType === 'last') {
+      document.querySelector('.btn-first-winner').classList.toggle('active', false);
+      document.querySelector('.btn-last-winner').classList.toggle('active', true);
+      document.querySelector('#in_winningRank').classList.toggle('active', false);
+    } else if (winnerType === 'custom') {
+      document.querySelector('.btn-first-winner').classList.toggle('active', false);
+      document.querySelector('.btn-last-winner').classList.toggle('active', false);
+      document.querySelector('#in_winningRank').classList.toggle('active', true);
+    }
+  }
+
+
+  let ready = false;
+  let winnerType = 'first';
+
+  document.addEventListener('DOMContentLoaded', () => {
+    initialize();
+  });
+
+  function initialize() {
+    if (!window.roulette || !window.roulette.isReady) {
+      console.log('does not loaded yet');
+      setTimeout(initialize, 100);
+      return;
+    }
+    console.log('initializing start');
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const namesFromUrl = urlParams.get('names');
+
+    if (namesFromUrl) {
+      document.querySelector('#in_names').value = namesFromUrl.replace(/,/g, '\n');
+    } else {
+      const savedNames = localStorage.getItem('mbr_names');
+      if (savedNames) {
+        document.querySelector('#in_names').value = savedNames;
+      }
+    }
+    document.querySelector('#in_names').addEventListener('input', () => {
+      renderWeightEditor();
+      getReady();
+    });
+
+    document.querySelector('#in_names').addEventListener('blur', () => {
+      importInlineWeightsToStorage();
+      normalizeNameInput();
+      renderWeightEditor();
+      getReady();
+    });
+
+    const weightRows = document.querySelector('#weightRows');
+    if (weightRows) {
+      weightRows.addEventListener('input', (e) => {
+        if (!e.target.classList.contains('weight-input')) return;
+        syncWeightsFromEditor();
+        getReady();
+      });
+    }
+
+    document.querySelector('#btnOpenWeightPopup').addEventListener('click', () => {
+      openWeightControlPopup();
+    });
+
+    window.addEventListener('storage', (event) => {
+      if (event.key === 'mbr_weights') {
+        renderWeightEditor();
+        getReady();
+      }
+    });
+
+    document.querySelector('#btnShuffle').addEventListener('click', () => {
+      getReady();
+    });
+
+    document.querySelector('#btnStart').addEventListener('click', () => {
+      if (!ready) return;
+      gtag && gtag('event', 'start', {
+        'event_category': 'roulette',
+        'event_label': 'start',
+        'value': window.roulette.getCount(),
+      });
+      const names = buildWeightedNames();
+      const marbles = names.map((n) => {
+        const p = parseName(n);
+        return p ? { name: p.name, count: p.count } : null;
+      }).filter(Boolean);
+      if (typeof umami !== 'undefined') {
+        umami.track('start', { count: window.roulette.getCount() });
+        marbles.forEach(m => {
+          umami.track('marble', { name: m.name, count: m.count });
+        });
+      }
+      window.roulette.start();
+      document.querySelector('#settings').classList.add('hide');
+      document.querySelector('#donate').classList.add('hide');
+    });
+
+    document.querySelector('#chkAutoRecording').addEventListener('change', (e) => {
+      window.options.autoRecording = e.target.matches(':checked');
+      window.roulette.setAutoRecording(window.options.autoRecording);
+    });
+
+    document.querySelector('#chkSkill').addEventListener('change', (e) => {
+      window.options.useSkills = e.target.matches(':checked');
+      window.roulette.setWinningRank(window.options.winningRank);
+    });
+
+    document.querySelector('#chkDarkMode').addEventListener('change', (e) => {
+      window.options.darkMode = e.target.matches(':checked');
+      window.roulette.setTheme(window.options.darkMode ? 'dark' : 'light');
+      document.documentElement.classList.toggle('light', !window.options.darkMode);
+    });
+
+    document.querySelector('#in_winningRank').addEventListener('change', (e) => {
+      const v = parseInt(e.target.value, 10);
+      winnerType = 'custom';
+      setWinnerRank(isNaN(v) ? 0 : v);
+    });
+
+    document.querySelector('.btn-last-winner').addEventListener('click', () => {
+      const total = window.roulette.getCount();
+      winnerType = 'last';
+      setWinnerRank(total);
+    });
+    document.querySelector('.btn-first-winner').addEventListener('click', () => {
+      winnerType = 'first';
+      setWinnerRank(1);
+    });
+
+    window.roulette.addEventListener('goal', () => {
+      ready = false;
+      setTimeout(() => {
+        document.querySelector('#settings').classList.remove('hide');
+        document.querySelector('#donate').classList.remove('hide');
+      }, 3000);
+    });
+
+    window.roulette.addEventListener('message', (e) => {
+      simpleToast(e.detail);
+    });
+
+    const toggleBtn = document.querySelector('#btnToggleSettings');
+    const collapsible = document.querySelector('.collapsible-rows');
+    toggleBtn.addEventListener('click', () => {
+      collapsible.classList.toggle('collapsed');
+      toggleBtn.querySelector('.toggle-arrow').textContent =
+        collapsible.classList.contains('collapsed') ? '▲' : '▼';
+    });
+
+    renderWeightEditor();
+    getReady();
+    document.querySelector('#btnShuffle').click();
+
+    const maps = window.roulette.getMaps();
+    const mapSelector = document.querySelector('#sltMap');
+    maps.forEach((map) => {
+      const option = document.createElement('option');
+      option.value = map.index;
+      option.innerHTML = map.title;
+      option.setAttribute('data-trans', '');
+      window.translateElement(option);
+      mapSelector.append(option);
+    });
+    mapSelector.addEventListener('change', (e) => {
+      const index = e.target.value;
+      window.roulette.setMap(index);
+    });
+
+    // const checkDonateButtonLoaded = () => {
+    //   const btn = document.querySelector('span.bmc-btn-text');
+    //   if (!btn) {
+    //     setTimeout(checkDonateButtonLoaded, 100);
+    //   } else {
+    //     console.log('donation button has been loaded');
+    //     btn.setAttribute('data-trans', '');
+    //     window.translateElement(btn);
+    //   }
+    // };
+    // setTimeout(checkDonateButtonLoaded, 100);
+
+    const currentNotice = 5;
+    const noticeKey = 'lastViewedNotification';
+
+    const closeNotice = () => {
+      document.querySelector('#notice').style.display = 'none';
+      localStorage.setItem(noticeKey, currentNotice.toString());
+    };
+
+    const openNotice = () => {
+      console.log('openNotice');
+      document.querySelector('#notice').style.display = 'flex';
+    };
+
+    document.querySelector('#closeNotice').addEventListener('click', () => {
+      closeNotice();
+    });
+
+    document.querySelector('#btnNotice').addEventListener('click', () => {
+      openNotice();
+    });
+
+    function simpleToast(msg) {
+      const toast = document.createElement('div');
+      toast.classList.add('toast');
+      toast.innerHTML = msg;
+
+      if (window.translateElement) {
+        console.log('try to translate');
+        window.translateElement(toast);
+      }
+
+      document.body.appendChild(toast);
+      setTimeout(() => {
+        document.body.removeChild(toast);
+      }, 1200);
+    }
+
+    const checkNotice = () => {
+      const lastViewed = localStorage.getItem(noticeKey);
+      console.log('lastViewed', lastViewed);
+      if (lastViewed === null || Number(lastViewed) < currentNotice) {
+        openNotice();
+      }
+    };
+
+    checkNotice();
+  }
+</script>
+<div id="settings" class="settings">
+  <div class="right">
+    <button id="btnToggleSettings" class="btn-toggle-settings">
+      <span data-trans>Settings</span>
+      <i class="toggle-arrow">▲</i>
+    </button>
+    <div class="collapsible-rows collapsed">
+      <div class="row">
+        <label for='sltMap'>
+          <i class="icon map"></i>
+          <span data-trans>Map</span>
+        </label>
+        <select id="sltMap"></select>
+      </div>
+      <div class="row row-toggles">
+        <div class='toggle-item'>
+          <label for='chkAutoRecording'>
+            <i class="icon record"></i>
+            <span data-trans>Recording</span>
+          </label>
+          <input type="checkbox" id="chkAutoRecording" />
+        </div>
+        <div class='toggle-item'>
+          <label for='chkSkill'>
+            <i class="icon bomb"></i>
+            <span data-trans>Using skills</span>
+          </label>
+          <input type="checkbox" id="chkSkill" checked />
+        </div>
+      </div>
+      <div class="row">
+        <label>
+          <i class="icon trophy"></i>
+          <span data-trans>The winner is</span>
+        </label>
+        <div class="btn-group">
+          <button class="btn-winner btn-first-winner active" data-trans>First</button>
+          <button class="btn-winner btn-last-winner" data-trans>Last</button>
+          <input type="number" id="in_winningRank" value="1" min="1" />
+        </div>
+      </div>
+      <div class="row row-theme">
+        <div class='theme'>
+          <i class='icon sun'></i>
+          <input type='checkbox' id='chkDarkMode' checked />
+          <i class='icon moon'></i>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="left">
+    <h3 data-trans>Enter names below</h3>
+    <textarea id="in_names" placeholder="Input names separated by commas or line feed here" data-trans="placeholder">수박*2,키위*2,귤*2</textarea>
+    <div class="actions">
+      <button id="btnNotice">
+        <i class="icon megaphone"></i>
+      </button>
+      <a href='https://marblerouletteshop.com' target='_blank' id="btnShop" class='btn new' title='MarbleRoulette Shop'>
+        <img src='assets/images/marblerouletteshop.png' />
+      </a>
+      <button id="btnOpenWeightPopup" class="btn-weight-popup-trigger" type="button" aria-label="Weight controls"></button>
+      <div class="sep"></div>
+      <button id="btnShuffle">
+        <i class="icon shuffle"></i>
+        <span data-trans>Shuffle</span>
+      </button>
+      <button id="btnStart">
+        <i class="icon play"></i>
+        <span data-trans>Start</span>
+      </button>
+    </div>
+  </div>
+</div>
+<div id="notice">
+  <h1>Notice</h1>
+  <div class="notice-body">
+    <h2>커스텀 룰렛 기능 오픈!</h2>
+    <p>나만의 특별한 룰렛을 만들 수 있는 커스텀 룰렛 기능이 오픈했어요!</p>
+    <p>
+      <a href='https://marblerouletteshop.com/intro/roulette' target='_blank' class='shop-button holographic'><img
+        src='assets/images/marblerouletteshop.png' width='125' height='125' /> 룰렛 꾸미러 가기</a>
+    </p>
+  </div>
+  <div class="notice-action">
+    <button id="closeNotice" data-trans>Close</button>
+  </div>
+</div>
+<div class="copyright">&copy; 2022-2026.<a href="https://lazygyu.net" target="_blank">lazygyu</a> <span data-trans>This program is freeware and may be used freely anywhere, including in broadcasts and videos.</span>
+</div>
+</body>
+</html>
