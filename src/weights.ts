@@ -13,7 +13,7 @@ type Participant = ParsedParticipant & {
 const NAME_KEY = 'mbr_names';
 const WEIGHT_KEY = 'mbr_weights';
 const MIN_WEIGHT = 0.1;
-const MAX_WEIGHT = 50;
+const MAX_WEIGHT = 200;
 const STEP_WEIGHT = 0.1;
 
 function isKoreanLocale() {
