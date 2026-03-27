@@ -47,6 +47,8 @@ export class Roulette extends EventTarget {
   private _devAssistConfig = loadDevAssistConfig();
   private _devAssistStageCenterX = 12.95;
   private _lastDevAssistSync = 0;
+  private _devAssistSpinnerZones: Array<{ x: number; y: number; radius: number; spinSign: number }> = [];
+  private _devAssistSpinnerState = new Map<number, { lastX: number; lastY: number; stallMs: number; escapeCooldownMs: number }>();
 
   private _uiObjects: UIObject[] = [];
 
@@ -367,6 +369,45 @@ export class Roulette extends EventTarget {
     return (minX + maxX) / 2;
   }
 
+  private _computeSpinnerZones(stage: StageDef) {
+    return (stage.entities || [])
+      .filter((entity) => entity.type === 'kinematic' && entity.shape.type === 'box' && Math.abs(entity.props.angularVelocity) > 0.25)
+      .map((entity) => ({
+        x: entity.position.x,
+        y: entity.position.y,
+        radius: Math.max(1.8, entity.shape.width * 1.4 + 0.9),
+        spinSign: Math.sign(entity.props.angularVelocity) || 1,
+      }));
+  }
+
+  private _getNearestSpinnerZone(marble: Marble) {
+    let nearest: { x: number; y: number; radius: number; spinSign: number } | null = null;
+    let bestDistSq = Infinity;
+
+    for (let i = 0; i < this._devAssistSpinnerZones.length; i++) {
+      const zone = this._devAssistSpinnerZones[i];
+      const dx = marble.x - zone.x;
+      const dy = marble.y - zone.y;
+      const distSq = dx * dx + dy * dy;
+      const limit = (zone.radius + 1.5) * (zone.radius + 1.5);
+      if (distSq <= limit && distSq < bestDistSq) {
+        nearest = zone;
+        bestDistSq = distSq;
+      }
+    }
+
+    return nearest;
+  }
+
+  private _getDevAssistSpinnerState(marble: Marble) {
+    const existing = this._devAssistSpinnerState.get(marble.id);
+    if (existing) return existing;
+
+    const next = { lastX: marble.x, lastY: marble.y, stallMs: 0, escapeCooldownMs: 0 };
+    this._devAssistSpinnerState.set(marble.id, next);
+    return next;
+  }
+
   private _applyDevAssist(marble: Marble, deltaTime: number, leadY: number) {
     if (!this._stage) return;
 
@@ -377,7 +418,12 @@ export class Roulette extends EventTarget {
     const velocity = this.physics.getMarbleVelocity(marble.id);
     const angularVelocity = this.physics.getMarbleAngularVelocity(marble.id);
     const progress = Math.max(0, Math.min(1, marble.y / this._stage.goalY));
-    const phaseScale = progress < 0.68 ? 1 : progress < 0.88 ? 0.72 : 0.4;
+    const spinnerZone = this._getNearestSpinnerZone(marble);
+    const spinnerInfluence = spinnerZone
+      ? Math.max(0, Math.min(1, 1 - Math.abs(marble.y - spinnerZone.y) / (spinnerZone.radius + 1.35)))
+      : 0;
+    const spinnerPhase = spinnerInfluence > 0.05;
+    const phaseScale = progress < 0.68 ? 1 : progress < 0.88 ? 0.76 : 0.46;
     const trailingDistance = Math.max(0, leadY - marble.y);
     const trailingScale = Math.min(1, trailingDistance / 14) * strength * 0.35;
     const effectiveStrength = Math.min(1, strength * phaseScale + trailingScale);
@@ -385,31 +431,81 @@ export class Roulette extends EventTarget {
     let nextVx = velocity.x;
     let nextVy = velocity.y;
 
-    const desiredVy = 2.8 + effectiveStrength * 3.8 + strength * (1 - progress) * 1.1;
+    const baseDesiredVy = 2.8 + effectiveStrength * 3.8 + strength * (1 - progress) * 1.1;
+    const desiredVy = spinnerPhase
+      ? baseDesiredVy * (0.72 + (1 - spinnerInfluence) * 0.18)
+      : baseDesiredVy;
     if (nextVy < desiredVy) {
-      nextVy += Math.min(desiredVy - nextVy, (0.08 + effectiveStrength * 0.22) * tickScale);
+      const downGain = spinnerPhase
+        ? 0.04 + effectiveStrength * 0.11
+        : 0.08 + effectiveStrength * 0.22;
+      nextVy += Math.min(desiredVy - nextVy, downGain * tickScale);
     }
 
     if (nextVy < -0.25) {
-      nextVy *= Math.max(0, 1 - (0.08 + effectiveStrength * 0.18) * tickScale);
+      const reboundClamp = spinnerPhase
+        ? 0.04 + effectiveStrength * 0.08
+        : 0.08 + effectiveStrength * 0.18;
+      nextVy *= Math.max(0, 1 - reboundClamp * tickScale);
     }
 
-    const centerPull = (this._devAssistStageCenterX - marble.x) * (0.01 + effectiveStrength * 0.03);
-    const maxCenterPull = 0.08 + effectiveStrength * 0.16;
+    const centeringFactor = spinnerPhase ? 0.22 + (1 - spinnerInfluence) * 0.18 : 1;
+    const centerPull = (this._devAssistStageCenterX - marble.x) * (0.01 + effectiveStrength * 0.03) * centeringFactor;
+    const maxCenterPull = (0.08 + effectiveStrength * 0.16) * centeringFactor;
     nextVx += Math.max(-maxCenterPull, Math.min(maxCenterPull, centerPull));
-    nextVx *= Math.max(0, 1 - (0.003 + effectiveStrength * 0.012) * tickScale);
 
-    const maxSideSpeed = 4.8 - effectiveStrength * 1.2;
+    const sideDamping = spinnerPhase
+      ? 0.0015 + effectiveStrength * 0.005
+      : 0.003 + effectiveStrength * 0.012;
+    nextVx *= Math.max(0, 1 - sideDamping * tickScale);
+
+    const maxSideSpeed = spinnerPhase
+      ? 5.2 - effectiveStrength * 0.35
+      : 4.8 - effectiveStrength * 1.2;
     if (Math.abs(nextVx) > maxSideSpeed) {
       nextVx = Math.sign(nextVx) * maxSideSpeed;
     }
 
-    const maxDownSpeed = 8.8 + effectiveStrength * 1.8;
+    const maxDownSpeed = spinnerPhase
+      ? 8.1 + effectiveStrength * 1.2
+      : 8.8 + effectiveStrength * 1.8;
     if (nextVy > maxDownSpeed) {
       nextVy = maxDownSpeed;
     }
 
-    const nextAngularVelocity = angularVelocity * Math.max(0, 1 - (0.04 + effectiveStrength * 0.14) * tickScale);
+    let nextAngularVelocity = angularVelocity * Math.max(0, 1 - (0.04 + effectiveStrength * 0.14) * tickScale);
+
+    if (spinnerZone) {
+      const state = this._getDevAssistSpinnerState(marble);
+      const deltaY = marble.y - state.lastY;
+      const deltaX = marble.x - state.lastX;
+      const barelyProgressing = deltaY < 0.03 && velocity.y < 2.5;
+      const orbiting = Math.abs(deltaX) > 0.015 && Math.abs(deltaY) < 0.02;
+
+      if (barelyProgressing || orbiting) {
+        state.stallMs += deltaTime;
+      } else {
+        state.stallMs = Math.max(0, state.stallMs - deltaTime * 1.5);
+      }
+
+      state.escapeCooldownMs = Math.max(0, state.escapeCooldownMs - deltaTime);
+
+      if (state.stallMs > 180 && state.escapeCooldownMs <= 0) {
+        const sideSign = marble.x >= spinnerZone.x ? 1 : -1;
+        const tangentSign = spinnerZone.spinSign * sideSign;
+        nextVx += tangentSign * (0.18 + strength * 0.35);
+        nextVy = Math.max(nextVy, 2.6 + strength * 1.8);
+        nextAngularVelocity += spinnerZone.spinSign * (0.6 + strength * 0.9);
+        state.stallMs = 0;
+        state.escapeCooldownMs = 220;
+      } else if (spinnerInfluence > 0.3) {
+        const sideSign = marble.x >= spinnerZone.x ? 1 : -1;
+        nextVx += spinnerZone.spinSign * sideSign * (0.015 + strength * 0.035) * spinnerInfluence * tickScale;
+      }
+
+      state.lastX = marble.x;
+      state.lastY = marble.y;
+    }
 
     this.physics.setMarbleVelocity(marble.id, nextVx, nextVy);
     this.physics.setMarbleAngularVelocity(marble.id, nextAngularVelocity);
@@ -422,6 +518,8 @@ export class Roulette extends EventTarget {
 
     this.physics.createStage(this._stage);
     this._devAssistStageCenterX = this._computeStageCenterX(this._stage);
+    this._devAssistSpinnerZones = this._computeSpinnerZones(this._stage);
+    this._devAssistSpinnerState.clear();
     this._camera.initializePosition();
   }
 
@@ -430,6 +528,7 @@ export class Roulette extends EventTarget {
     this._winner = null;
     this._winners = [];
     this._marbles = [];
+    this._devAssistSpinnerState.clear();
   }
 
   public start() {
@@ -497,6 +596,8 @@ export class Roulette extends EventTarget {
     const gap = maxWeight - minWeight;
 
     let totalCount = 0;
+    this._devAssistSpinnerState.clear();
+
     members.forEach((member) => {
       if (member) {
         member.weight = gap ? 0.1 + (member.weight - minWeight) / gap : 0.6;
@@ -509,6 +610,8 @@ export class Roulette extends EventTarget {
         .fill(0)
         .map((_, i) => i)
     );
+    this._devAssistSpinnerState.clear();
+
     members.forEach((member) => {
       if (member) {
         for (let j = 0; j < member.count; j++) {

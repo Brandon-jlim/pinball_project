@@ -181,8 +181,15 @@ function getParticipants() {
   return getParticipantsFromRenderedRows();
 }
 
+function getPreferredDevAssistParticipants(fallbackParticipants = []) {
+  const renderedRowParticipants = getParticipantsFromRenderedRows();
+  if (renderedRowParticipants.length) return renderedRowParticipants;
+  if (fallbackParticipants.length) return fallbackParticipants;
+  return getParticipants();
+}
+
 function getAssistTargets(participants = getParticipants()) {
-  const sourceParticipants = participants.length ? participants : getParticipantsFromRenderedRows();
+  const sourceParticipants = getPreferredDevAssistParticipants(participants);
   const targets = [];
   sourceParticipants.forEach((participant) => {
     const copies = Math.max(1, participant.count || 1);
@@ -397,7 +404,8 @@ function saveAssistConfigFromControls({ autoPickTarget = false, explicitTargetId
   if (!(slider instanceof HTMLInputElement)) return;
 
   const participants = getParticipants();
-  const targets = getAssistTargets(participants);
+  const sourceParticipants = getPreferredDevAssistParticipants(participants);
+  const targets = getAssistTargets(sourceParticipants);
   let targetId = typeof explicitTargetId === 'string' ? explicitTargetId : lastRenderedTargetId;
   const strength = clampDevAssistStrength(parseFloat(slider.value));
 
@@ -429,7 +437,7 @@ function renderWeightRows(participants) {
 }
 
 function renderDevAssist(participants = getParticipants()) {
-  const sourceParticipants = participants.length ? participants : getParticipantsFromRenderedRows();
+  const sourceParticipants = getPreferredDevAssistParticipants(participants);
   const targets = getAssistTargets(sourceParticipants);
   const list = document.querySelector('#devAssistTargetList');
   const slider = document.querySelector('#devAssistStrength');
@@ -458,7 +466,8 @@ function renderDevAssist(participants = getParticipants()) {
 function render() {
   const participants = getParticipants();
   renderWeightRows(participants);
-  renderDevAssist(participants);
+  const sourceParticipants = getPreferredDevAssistParticipants(participants);
+  renderDevAssist(sourceParticipants);
   updateStatus(participants);
   lastParticipantSnapshot = getParticipantSyncSnapshot();
 }

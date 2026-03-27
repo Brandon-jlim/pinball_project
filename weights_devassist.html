@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Weight Control</title>
+  <link rel='stylesheet' href='assets/weights.scss' />
+</head>
+<body>
+  <script type="module" src="./src/weights.ts?devassistfix=20260327b"></script>
+  <main class="weight-popup-shell">
+    <section class="weight-popup-card weight-popup-header">
+      <div>
+        <h1 data-trans>Weight control window</h1>
+        <p data-trans>Adjust participant weights in this separate window. Changes are applied to the main pinball screen automatically.</p>
+      </div>
+      <div class="weight-popup-actions">
+        <button id="btnRefreshWeights" data-trans>Refresh list</button>
+        <button id="btnResetWeights" data-trans>Reset all weights</button>
+        <button id="btnCloseWeights" data-trans>Close window</button>
+      </div>
+    </section>
+
+    <section class="weight-popup-card weight-popup-status">
+      <div class="weight-status-item">
+        <span class="weight-status-label" data-trans>Current participants</span>
+        <strong id="participantCount">0</strong>
+      </div>
+      <div class="weight-status-item">
+        <span class="weight-status-label" data-trans>Adjusted weights</span>
+        <strong id="customWeightCount">0</strong>
+      </div>
+    </section>
+
+    <section class="weight-popup-card weight-popup-dev-card">
+      <div class="weight-popup-dev-header">
+        <div>
+          <h2 data-trans>Developer physics assist</h2>
+          <p data-trans>Apply a runtime-only physics correction to one marble. Start near 10~25 for a subtle effect.</p>
+        </div>
+        <button id="btnResetDevAssist" data-trans>Reset dev assist</button>
+      </div>
+
+      <div class="weight-popup-dev-grid">
+        <div class="weight-popup-field">
+          <div class="weight-popup-field-label-row">
+            <span class="weight-popup-field-label" data-trans>Target marble</span>
+            <strong id="devAssistTargetCount">0</strong>
+          </div>
+          <div id="devAssistTargetList" class="weight-popup-target-list" role="listbox" aria-label="Target marble"></div>
+          <small id="devAssistTargetEmpty" class="weight-popup-field-help" data-trans hidden>No selectable marbles yet. Enter participants in the main window first.</small>
+        </div>
+
+        <label class="weight-popup-field">
+          <div class="weight-popup-field-label-row">
+            <span class="weight-popup-field-label" data-trans>Assist strength</span>
+            <strong id="devAssistStrengthValue">0</strong>
+          </div>
+          <div class="weight-popup-strength-row">
+            <input id="devAssistStrength" type="range" min="0" max="100" step="1" />
+            <input id="devAssistStrengthNumber" type="number" min="0" max="100" step="1" />
+          </div>
+          <small class="weight-popup-field-help" data-trans>0 = off · 15~25 = subtle · 40~60 = visible · 80+ = strong</small>
+        </label>
+      </div>
+
+      <div class="weight-popup-dev-summary">
+        <div class="weight-popup-dev-badge" id="devAssistTargetBadge">No target marble selected</div>
+        <strong id="devAssistSummary">Developer physics assist is off</strong>
+      </div>
+
+      <div class="weight-popup-dev-metrics">
+        <div class="weight-popup-metric">
+          <span class="weight-popup-metric-value" id="devAssistDownwardValue">+0%</span>
+          <span class="weight-popup-metric-label" data-trans>Downward assist</span>
+        </div>
+        <div class="weight-popup-metric">
+          <span class="weight-popup-metric-value" id="devAssistReboundValue">0%</span>
+          <span class="weight-popup-metric-label" data-trans>Rebound damping</span>
+        </div>
+        <div class="weight-popup-metric">
+          <span class="weight-popup-metric-value" id="devAssistSpinValue">0%</span>
+          <span class="weight-popup-metric-label" data-trans>Spin damping</span>
+        </div>
+      </div>
+
+      <p class="weight-popup-dev-note" data-trans>If a participant has multiple marbles, you can target a specific copy with #1, #2, ...</p>
+    </section>
+
+    <section class="weight-popup-card">
+      <div id="weightPopupEmpty" class="weight-popup-empty" hidden data-trans>Enter participant names in the main pinball window to edit weights here.</div>
+      <div id="weightPopupRows" class="weight-popup-rows"></div>
+    </section>
+  </main>
+</body>
+</html>
