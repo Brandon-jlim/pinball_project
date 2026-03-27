@@ -1,5 +1,6 @@
 import { Camera } from './camera';
 import { canvasHeight, canvasWidth, initialZoom, Skills, Themes, zoomThreshold } from './data/constants';
+import { DEV_ASSIST_KEY, loadDevAssistConfig } from './devAssist';
 import { type StageDef, stages } from './data/maps';
 import { FastForwader } from './fastForwader';
 import type { GameObject } from './gameObject';
@@ -43,6 +44,9 @@ export class Roulette extends EventTarget {
   private _goalDist: number = Infinity;
   private _isRunning: boolean = false;
   private _winner: Marble | null = null;
+  private _devAssistConfig = loadDevAssistConfig();
+  private _devAssistStageCenterX = 12.95;
+  private _lastDevAssistSync = 0;
 
   private _uiObjects: UIObject[] = [];
 
@@ -137,9 +141,16 @@ export class Roulette extends EventTarget {
   private _updateMarbles(deltaTime: number) {
     if (!this._stage) return;
 
+    this._syncDevAssistConfig();
+    const assistedMarble = this._findAssistedMarble();
+    const leadY = this._getLeadMarbleY();
+
     for (let i = 0; i < this._marbles.length; i++) {
       const marble = this._marbles[i];
       marble.update(deltaTime);
+      if (this._isRunning && assistedMarble?.id === marble.id) {
+        this._applyDevAssist(marble, deltaTime, leadY);
+      }
       if (marble.skill === Skills.Impact) {
         this._effects.push(new SkillEffect(marble.x, marble.y));
         this.physics.impact(marble.id);
@@ -227,6 +238,12 @@ export class Roulette extends EventTarget {
 
     this.physics = new Box2dPhysics();
     await this.physics.init();
+    this._syncDevAssistConfig(true);
+    window.addEventListener('storage', (event) => {
+      if (event.key === DEV_ASSIST_KEY) {
+        this._syncDevAssistConfig(true);
+      }
+    });
 
     this.addUiObject(new RankRenderer());
     this.attachEvent();
@@ -294,12 +311,117 @@ export class Roulette extends EventTarget {
     });
   }
 
+  private _syncDevAssistConfig(force: boolean = false) {
+    const now = Date.now();
+    if (!force && now - this._lastDevAssistSync < 120) return;
+
+    this._lastDevAssistSync = now;
+    this._devAssistConfig = loadDevAssistConfig();
+  }
+
+  private _findAssistedMarble() {
+    if (!this._devAssistConfig.targetId || this._devAssistConfig.strength <= 0) return null;
+    return this._marbles.find((marble) => marble.controlId === this._devAssistConfig.targetId) || null;
+  }
+
+  private _getLeadMarbleY() {
+    let leadY = -Infinity;
+
+    for (let i = 0; i < this._marbles.length; i++) {
+      if (this._marbles[i].y > leadY) {
+        leadY = this._marbles[i].y;
+      }
+    }
+
+    return Number.isFinite(leadY) ? leadY : 0;
+  }
+
+  private _computeStageCenterX(stage: StageDef) {
+    let minX = Infinity;
+    let maxX = -Infinity;
+
+    stage.entities?.forEach((entity) => {
+      switch (entity.shape.type) {
+        case 'polyline':
+          entity.shape.points.forEach(([x]) => {
+            const worldX = entity.position.x + x;
+            if (worldX < minX) minX = worldX;
+            if (worldX > maxX) maxX = worldX;
+          });
+          break;
+        case 'circle':
+          minX = Math.min(minX, entity.position.x - entity.shape.radius);
+          maxX = Math.max(maxX, entity.position.x + entity.shape.radius);
+          break;
+        case 'box':
+          minX = Math.min(minX, entity.position.x - entity.shape.width);
+          maxX = Math.max(maxX, entity.position.x + entity.shape.width);
+          break;
+      }
+    });
+
+    if (!Number.isFinite(minX) || !Number.isFinite(maxX)) {
+      return 12.95;
+    }
+
+    return (minX + maxX) / 2;
+  }
+
+  private _applyDevAssist(marble: Marble, deltaTime: number, leadY: number) {
+    if (!this._stage) return;
+
+    const strength = Math.max(0, Math.min(1, this._devAssistConfig.strength / 100));
+    if (!strength) return;
+
+    const tickScale = deltaTime / this._updateInterval;
+    const velocity = this.physics.getMarbleVelocity(marble.id);
+    const angularVelocity = this.physics.getMarbleAngularVelocity(marble.id);
+    const progress = Math.max(0, Math.min(1, marble.y / this._stage.goalY));
+    const phaseScale = progress < 0.68 ? 1 : progress < 0.88 ? 0.72 : 0.4;
+    const trailingDistance = Math.max(0, leadY - marble.y);
+    const trailingScale = Math.min(1, trailingDistance / 14) * strength * 0.35;
+    const effectiveStrength = Math.min(1, strength * phaseScale + trailingScale);
+
+    let nextVx = velocity.x;
+    let nextVy = velocity.y;
+
+    const desiredVy = 2.8 + effectiveStrength * 3.8 + strength * (1 - progress) * 1.1;
+    if (nextVy < desiredVy) {
+      nextVy += Math.min(desiredVy - nextVy, (0.08 + effectiveStrength * 0.22) * tickScale);
+    }
+
+    if (nextVy < -0.25) {
+      nextVy *= Math.max(0, 1 - (0.08 + effectiveStrength * 0.18) * tickScale);
+    }
+
+    const centerPull = (this._devAssistStageCenterX - marble.x) * (0.01 + effectiveStrength * 0.03);
+    const maxCenterPull = 0.08 + effectiveStrength * 0.16;
+    nextVx += Math.max(-maxCenterPull, Math.min(maxCenterPull, centerPull));
+    nextVx *= Math.max(0, 1 - (0.003 + effectiveStrength * 0.012) * tickScale);
+
+    const maxSideSpeed = 4.8 - effectiveStrength * 1.2;
+    if (Math.abs(nextVx) > maxSideSpeed) {
+      nextVx = Math.sign(nextVx) * maxSideSpeed;
+    }
+
+    const maxDownSpeed = 8.8 + effectiveStrength * 1.8;
+    if (nextVy > maxDownSpeed) {
+      nextVy = maxDownSpeed;
+    }
+
+    const nextAngularVelocity = angularVelocity * Math.max(0, 1 - (0.04 + effectiveStrength * 0.14) * tickScale);
+
+    this.physics.setMarbleVelocity(marble.id, nextVx, nextVy);
+    this.physics.setMarbleAngularVelocity(marble.id, nextAngularVelocity);
+  }
+
   private _loadMap() {
     if (!this._stage) {
       throw new Error('No map has been selected');
     }
 
     this.physics.createStage(this._stage);
+    this._devAssistStageCenterX = this._computeStageCenterX(this._stage);
     this._camera.initializePosition();
   }
 
@@ -311,6 +433,7 @@ export class Roulette extends EventTarget {
   }
 
   public start() {
+    this._syncDevAssistConfig(true);
     this._isRunning = true;
     this._winnerRank = options.winningRank;
     if (this._winnerRank >= this._marbles.length) {
@@ -353,6 +476,7 @@ export class Roulette extends EventTarget {
   }
 
   public setMarbles(names: string[]) {
+    this._syncDevAssistConfig(true);
     this.reset();
     const arr = names.slice();
 
@@ -389,7 +513,8 @@ export class Roulette extends EventTarget {
       if (member) {
         for (let j = 0; j < member.count; j++) {
           const order = orders.pop() || 0;
-          this._marbles.push(new Marble(this.physics, order, totalCount, member.name, member.weight));
+          const controlId = `${member.name}::${j + 1}`;
+          this._marbles.push(new Marble(this.physics, order, totalCount, member.name, member.weight, controlId));
         }
       }
     });

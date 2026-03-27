@@ -26,6 +26,14 @@ export interface IPhysics {
 
   getMarblePosition(id: number): { x: number; y: number; angle: number };
 
+  getMarbleVelocity(id: number): { x: number; y: number };
+
+  setMarbleVelocity(id: number, x: number, y: number): void;
+
+  getMarbleAngularVelocity(id: number): number;
+
+  setMarbleAngularVelocity(id: number, value: number): void;
+
   getEntities(): MapEntityState[];
 
   impact(id: number): void;

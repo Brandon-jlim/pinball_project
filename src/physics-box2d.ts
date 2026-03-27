@@ -149,6 +149,35 @@ export class Box2dPhysics implements IPhysics {
     }
   }
 
+  getMarbleVelocity(id: number): { x: number; y: number } {
+    const marble = this.marbleMap[id];
+    if (!marble) return { x: 0, y: 0 };
+
+    const velocity = marble.GetLinearVelocity();
+    return { x: velocity.x, y: velocity.y };
+  }
+
+  setMarbleVelocity(id: number, x: number, y: number): void {
+    const marble = this.marbleMap[id];
+    if (!marble) return;
+
+    marble.SetLinearVelocity(new this.Box2D.b2Vec2(x, y));
+  }
+
+  getMarbleAngularVelocity(id: number): number {
+    const marble = this.marbleMap[id];
+    if (!marble) return 0;
+
+    return marble.GetAngularVelocity();
+  }
+
+  setMarbleAngularVelocity(id: number, value: number): void {
+    const marble = this.marbleMap[id];
+    if (!marble) return;
+
+    marble.SetAngularVelocity(value);
+  }
+
   getEntities(): MapEntityState[] {
     return this.entities.map((entity) => {
       return {

@@ -134,6 +134,19 @@
     localStorage.setItem('mbr_weights', JSON.stringify(weightMap));
   }
 
+  function saveParticipantsSnapshot() {
+    try {
+      const participants = getParticipantsForWeightEditor().map((participant) => ({
+        name: participant.name,
+        count: participant.count,
+        weight: participant.weight,
+      }));
+      localStorage.setItem('mbr_participants_snapshot', JSON.stringify(participants));
+    } catch (e) {
+      console.warn('failed to save participant snapshot', e);
+    }
+  }
+
   function isKoreanLocale() {
     const locale = (document.documentElement.lang || navigator.language || 'en').toLowerCase();
     return locale.startsWith('ko');
@@ -181,16 +194,18 @@
 
     const participants = getParticipantsForWeightEditor();
     summary.textContent = getWeightSummaryMessage(participants);
+    saveParticipantsSnapshot();
   }
 
   function openWeightControlPopup() {
     importInlineWeightsToStorage();
     localStorage.setItem('mbr_names', document.querySelector('#in_names').value);
+    saveParticipantsSnapshot();
 
     const popup = window.open(
-      'weights.html',
-      'marbleRouletteWeightControl',
-      'popup=yes,width=560,height=780,resizable=yes,scrollbars=yes'
+      'weights_devassist.html?popupv=20260327b',
+      'marbleRouletteWeightControlDevAssist',
+      'popup=yes,width=760,height=900,resizable=yes,scrollbars=yes'
     );
 
     if (!popup) {

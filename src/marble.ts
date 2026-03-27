@@ -10,6 +10,7 @@ import { Vector } from './utils/Vector';
 export class Marble {
   type = 'marble' as const;
   name: string = '';
+  controlId: string = '';
   size: number = 0.5;
   color: string = 'red';
   hue: number = 0;
@@ -53,8 +54,9 @@ export class Marble {
     return this.position.angle;
   }
 
-  constructor(physics: IPhysics, order: number, max: number, name?: string, weight: number = 1) {
+  constructor(physics: IPhysics, order: number, max: number, name?: string, weight: number = 1, controlId?: string) {
     this.name = name || `M${order}`;
+    this.controlId = controlId || this.name;
     this.weight = weight;
     this.physics = physics;
 
