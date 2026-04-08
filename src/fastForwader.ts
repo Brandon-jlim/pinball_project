@@ -2,197 +2,254 @@ import type { RenderParameters } from './rouletteRenderer';
 import type { Rect } from './types/rect.type';
 import type { MouseEventArgs, UIObject } from './UIObject';
 
-type SpeedMode = 0.5 | 1 | 2;
+type SpeedMode = 0.2 | 0.3 | 0.5 | 1 | 2;
 
 export class FastForwader implements UIObject {
-  private static activeInstance: FastForwader | null = null;
-  private static isKeyboardListenerAttached: boolean = false;
+	private static activeInstance: FastForwader | null = null;
+	private static isKeyboardListenerAttached: boolean = false;
 
-  private bound: Rect = {
-    x: 0,
-    y: 0,
-    w: 0,
-    h: 0,
-  };
+	private bound: Rect = {
+		x: 0,
+		y: 0,
+		w: 0,
+		h: 0,
+	};
 
-  private icon: HTMLImageElement;
-  private currentSpeed: SpeedMode = 1;
+	private icon: HTMLImageElement;
+	private currentSpeed: SpeedMode = 1;
 
-  private mousePressed: boolean = false;
-  private fastKeyPressed: boolean = false;
-  private slowKeyPressed: boolean = false;
+	private mousePressed: boolean = false;
+	private fastKeyPressed: boolean = false;
+	private slowKey05Pressed: boolean = false;
+	private slowKey03Pressed: boolean = false;
+	private slowKey02Pressed: boolean = false;
 
-  constructor() {
-    this.icon = new Image();
-    this.icon.src = new URL('../assets/images/ff.svg', import.meta.url).toString();
+	constructor() {
+		this.icon = new Image();
+		this.icon.src = new URL('../assets/images/ff.svg', import.meta.url).toString();
 
-    FastForwader.activeInstance = this;
-    FastForwader.attachKeyboardListeners();
-  }
+		FastForwader.activeInstance = this;
+		FastForwader.attachKeyboardListeners();
+	}
 
-  private static attachKeyboardListeners(): void {
-    if (FastForwader.isKeyboardListenerAttached || typeof window === 'undefined') {
-      return;
-    }
+	private static attachKeyboardListeners(): void {
+		if (FastForwader.isKeyboardListenerAttached || typeof window === 'undefined') {
+			return;
+		}
 
-    window.addEventListener('keydown', FastForwader.handleKeyDown);
-    window.addEventListener('keyup', FastForwader.handleKeyUp);
-    window.addEventListener('blur', FastForwader.handleWindowBlur);
+		window.addEventListener('keydown', FastForwader.handleKeyDown);
+		window.addEventListener('keyup', FastForwader.handleKeyUp);
+		window.addEventListener('blur', FastForwader.handleWindowBlur);
 
-    FastForwader.isKeyboardListenerAttached = true;
-  }
+		FastForwader.isKeyboardListenerAttached = true;
+	}
 
-  private static handleKeyDown = (e: KeyboardEvent): void => {
-    const instance = FastForwader.activeInstance;
-    if (!instance) {
-      return;
-    }
+	private static handleKeyDown = (e: KeyboardEvent): void => {
+		const instance = FastForwader.activeInstance;
+		if (!instance) {
+			return;
+		}
 
-    instance.onKeyDown(e);
-  };
+		instance.onKeyDown(e);
+	};
 
-  private static handleKeyUp = (e: KeyboardEvent): void => {
-    const instance = FastForwader.activeInstance;
-    if (!instance) {
-      return;
-    }
+	private static handleKeyUp = (e: KeyboardEvent): void => {
+		const instance = FastForwader.activeInstance;
+		if (!instance) {
+			return;
+		}
 
-    instance.onKeyUp(e);
-  };
+		instance.onKeyUp(e);
+	};
 
-  private static handleWindowBlur = (): void => {
-    const instance = FastForwader.activeInstance;
-    if (!instance) {
-      return;
-    }
+	private static handleWindowBlur = (): void => {
+		const instance = FastForwader.activeInstance;
+		if (!instance) {
+			return;
+		}
 
-    instance.onWindowBlur();
-  };
+		instance.onWindowBlur();
+	};
 
-  public get speed(): number {
-    return this.currentSpeed;
-  }
+	public get speed(): number {
+		return this.currentSpeed;
+	}
 
-  update(_deltaTime: number): void {}
+	update(_deltaTime: number): void {}
 
-  private onKeyDown(e: KeyboardEvent): void {
-    const key = e.key.toLowerCase();
+	private onKeyDown(e: KeyboardEvent): void {
+		const key = e.key.toLowerCase();
 
-    if (key === 'p') {
-      this.fastKeyPressed = true;
-      e.preventDefault();
-      this.updateSpeed();
-      return;
-    }
+		if (key === 'u') {
+			this.slowKey02Pressed = true;
+			e.preventDefault();
+			this.updateSpeed();
+			return;
+		}
 
-    if (key === 'o') {
-      this.slowKeyPressed = true;
-      e.preventDefault();
-      this.updateSpeed();
-    }
-  }
+		if (key === 'i') {
+			this.slowKey03Pressed = true;
+			e.preventDefault();
+			this.updateSpeed();
+			return;
+		}
 
-  private onKeyUp(e: KeyboardEvent): void {
-    const key = e.key.toLowerCase();
+		if (key === 'o') {
+			this.slowKey05Pressed = true;
+			e.preventDefault();
+			this.updateSpeed();
+			return;
+		}
 
-    if (key === 'p') {
-      this.fastKeyPressed = false;
-      this.updateSpeed();
-      return;
-    }
+		if (key === 'p') {
+			this.fastKeyPressed = true;
+			e.preventDefault();
+			this.updateSpeed();
+		}
+	}
 
-    if (key === 'o') {
-      this.slowKeyPressed = false;
-      this.updateSpeed();
-    }
-  }
+	private onKeyUp(e: KeyboardEvent): void {
+		const key = e.key.toLowerCase();
 
-  private onWindowBlur(): void {
-    this.fastKeyPressed = false;
-    this.slowKeyPressed = false;
-    this.mousePressed = false;
-    this.updateSpeed();
-  }
+		if (key === 'u') {
+			this.slowKey02Pressed = false;
+			this.updateSpeed();
+			return;
+		}
 
-  private updateSpeed(): void {
-    if (this.slowKeyPressed) {
-      this.currentSpeed = 0.5;
-      return;
-    }
+		if (key === 'i') {
+			this.slowKey03Pressed = false;
+			this.updateSpeed();
+			return;
+		}
 
-    if (this.fastKeyPressed || this.mousePressed) {
-      this.currentSpeed = 2;
-      return;
-    }
+		if (key === 'o') {
+			this.slowKey05Pressed = false;
+			this.updateSpeed();
+			return;
+		}
 
-    this.currentSpeed = 1;
-  }
+		if (key === 'p') {
+			this.fastKeyPressed = false;
+			this.updateSpeed();
+		}
+	}
 
-  private renderSlowOverlay(ctx: CanvasRenderingContext2D, centerX: number, centerY: number): void {
-    ctx.save();
-    ctx.fillStyle = 'white';
-    ctx.strokeStyle = 'white';
-    ctx.globalAlpha = 0.55;
-    ctx.lineWidth = 3;
-    ctx.font = 'bold 42px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
+	private onWindowBlur(): void {
+		this.fastKeyPressed = false;
+		this.slowKey05Pressed = false;
+		this.slowKey03Pressed = false;
+		this.slowKey02Pressed = false;
+		this.mousePressed = false;
+		this.updateSpeed();
+	}
 
-    ctx.strokeRect(centerX - 110, centerY - 50, 220, 100);
-    ctx.fillText('0.5x', centerX, centerY + 2);
+	private updateSpeed(): void {
+		if (this.slowKey02Pressed) {
+			this.currentSpeed = 0.2;
+			return;
+		}
 
-    ctx.restore();
-  }
+		if (this.slowKey03Pressed) {
+			this.currentSpeed = 0.3;
+			return;
+		}
 
-  private renderFastOverlay(ctx: CanvasRenderingContext2D, centerX: number, centerY: number): void {
-    ctx.save();
-    ctx.strokeStyle = 'white';
-    ctx.fillStyle = 'white';
-    ctx.globalAlpha = 0.55;
-    ctx.lineWidth = 3;
+		if (this.slowKey05Pressed) {
+			this.currentSpeed = 0.5;
+			return;
+		}
 
-    ctx.strokeRect(centerX - 110, centerY - 50, 220, 100);
-    ctx.drawImage(this.icon, centerX - 96, centerY - 34, 108, 68);
+		if (this.fastKeyPressed || this.mousePressed) {
+			this.currentSpeed = 2;
+			return;
+		}
 
-    ctx.font = 'bold 40px sans-serif';
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('2x', centerX + 25, centerY + 2);
+		this.currentSpeed = 1;
+	}
 
-    ctx.restore();
-  }
+	private getSpeedLabel(): string {
+		return `${this.currentSpeed}x`;
+	}
 
-  render(ctx: CanvasRenderingContext2D, _params: RenderParameters, width: number, height: number): void {
-    this.bound.w = width / 2;
-    this.bound.h = height / 2;
-    this.bound.x = this.bound.w / 2;
-    this.bound.y = this.bound.h / 2;
+	private renderSlowOverlay(
+		ctx: CanvasRenderingContext2D,
+		centerX: number,
+		centerY: number,
+	): void {
+		ctx.save();
+		ctx.fillStyle = 'white';
+		ctx.strokeStyle = 'white';
+		ctx.globalAlpha = 0.55;
+		ctx.lineWidth = 3;
+		ctx.font = 'bold 42px sans-serif';
+		ctx.textAlign = 'center';
+		ctx.textBaseline = 'middle';
 
-    if (this.currentSpeed === 1) {
-      return;
-    }
+		ctx.strokeRect(centerX - 110, centerY - 50, 220, 100);
+		ctx.fillText(this.getSpeedLabel(), centerX, centerY + 2);
 
-    const centerX = this.bound.x + this.bound.w / 2;
-    const centerY = this.bound.y + this.bound.h / 2;
+		ctx.restore();
+	}
 
-    if (this.currentSpeed < 1) {
-      this.renderSlowOverlay(ctx, centerX, centerY);
-    } else {
-      this.renderFastOverlay(ctx, centerX, centerY);
-    }
-  }
+	private renderFastOverlay(
+		ctx: CanvasRenderingContext2D,
+		centerX: number,
+		centerY: number,
+	): void {
+		ctx.save();
+		ctx.strokeStyle = 'white';
+		ctx.fillStyle = 'white';
+		ctx.globalAlpha = 0.55;
+		ctx.lineWidth = 3;
 
-  getBoundingBox(): Rect | null {
-    return this.bound;
-  }
+		ctx.strokeRect(centerX - 110, centerY - 50, 220, 100);
+		ctx.drawImage(this.icon, centerX - 96, centerY - 34, 108, 68);
 
-  onMouseDown?(_e?: MouseEventArgs): void {
-    this.mousePressed = true;
-    this.updateSpeed();
-  }
+		ctx.font = 'bold 40px sans-serif';
+		ctx.textAlign = 'left';
+		ctx.textBaseline = 'middle';
+		ctx.fillText(this.getSpeedLabel(), centerX + 25, centerY + 2);
 
-  onMouseUp?(_e?: MouseEventArgs): void {
-    this.mousePressed = false;
-    this.updateSpeed();
-  }
+		ctx.restore();
+	}
+
+	render(
+		ctx: CanvasRenderingContext2D,
+		_params: RenderParameters,
+		width: number,
+		height: number,
+	): void {
+		this.bound.w = width / 2;
+		this.bound.h = height / 2;
+		this.bound.x = this.bound.w / 2;
+		this.bound.y = this.bound.h / 2;
+
+		if (this.currentSpeed === 1) {
+			return;
+		}
+
+		const centerX = this.bound.x + this.bound.w / 2;
+		const centerY = this.bound.y + this.bound.h / 2;
+
+		if (this.currentSpeed < 1) {
+			this.renderSlowOverlay(ctx, centerX, centerY);
+		} else {
+			this.renderFastOverlay(ctx, centerX, centerY);
+		}
+	}
+
+	getBoundingBox(): Rect | null {
+		return this.bound;
+	}
+
+	onMouseDown?(_e?: MouseEventArgs): void {
+		this.mousePressed = true;
+		this.updateSpeed();
+	}
+
+	onMouseUp?(_e?: MouseEventArgs): void {
+		this.mousePressed = false;
+		this.updateSpeed();
+	}
 }
